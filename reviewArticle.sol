@@ -1,4 +1,4 @@
-pragma solidity ^0.4.18;
+pragma solidity ^0.4.19;
 
 import "./ERC20.sol";
 
@@ -29,7 +29,7 @@ contract ReviewerGroup {
     }
     
     function reportNewArticle (ReviewArticle _article) public {
-        emit NewArticle(_article); //someone will have to check it's not a malitious contract!
+        emit NewArticle(_article); //someone will have to check it's not a malicious contract!
     }
 }
 
@@ -57,9 +57,7 @@ contract ReviewArticle {
     mapping (address => bool) hasReviewed;
     string[] public reviewsMeta;
     address[] public reviewers;
-    
-    uint reviewCount = 0;
-    
+
     modifier authorAccess {
         require(msg.sender == author);
         _;
@@ -88,8 +86,30 @@ contract ReviewArticle {
         require(!hasReviewed[msg.sender]);
         reviewsMeta.push(_reviewMeta);
         reviewers.push(msg.sender);
-        reviewCount++;
         _ScienceToken.transfer(msg.sender, bounty);
     }
     
+    function reviewCount() public view returns (uint count) {
+        return reviewsMeta.length;
+    }
+}
+
+//helper contract to organise versions
+contract ArticleRepository {
+    address public owner;
+    ReviewArticle[] public versions;
+
+    function ArticleRepository (ReviewArticle _initialVersion) public {
+        versions.push(_initialVersion);
+        owner = msg.sender;
+    }
+    
+    function addNew (ReviewArticle _newVersion) public {
+        require(msg.sender == owner);
+        versions.push(_newVersion);
+    }
+    
+    function versionCount () public view returns (uint count) {
+        return versions.length;
+    }
 }
