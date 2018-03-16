@@ -22,7 +22,7 @@ contract OpenArticle {
     mapping(bytes32 => uint) public claimed;
 
     address[] public authors;
-    mapping(address => bool) isAdmin;
+    mapping(address => bool) public isAdmin;
 
     bytes32[] public comments;
     
@@ -69,6 +69,7 @@ contract OpenArticle {
         _ScienceToken = TokenERC20(_scienceToken);
         //init authors
         authors.push(msg.sender);
+        isAdmin[msg.sender] = true;
         versions.push(_initialVersion);
         madeBy[_initialVersion].push(msg.sender);
         //init coauthors
