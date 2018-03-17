@@ -177,11 +177,13 @@ contract OpenArticle {
 /************ changers (creator access) *********************/
 /************************************************************/
     function retractVersion(bytes32 _version) public creatorAccess(_version) {
-        retractedBy[_version] = msg.sender;
         if (virginLink(_version)) //cancel
         {
-            _ScienceToken.transfer(madeBy[_version][0], claimed[_version]);
+            uint claim = claimed[_version];
+            claimed[_version] = 0;
+            _ScienceToken.transfer(madeBy[_version][0], claim);
         }
+        retractedBy[_version] = msg.sender;
     }
 
 /************************************************************/
@@ -249,6 +251,7 @@ contract OpenArticle {
     }
 
     function closeArticle () mainAuthorAccess public {
+        //useless if the claims are 0
         require(!areThereUntouchedCommits());
         _ScienceToken.transfer(authors[0], _ScienceToken.balanceOf(this));  //this withdraws the pot and effectively closes the article untill someone pays to re-open it.
     }
