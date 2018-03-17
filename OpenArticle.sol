@@ -104,8 +104,8 @@ contract OpenArticle {
         return (reviews[_version]);
     }
     
-    function getEntryData(bytes32 _ipfsLink) public view returns (address[], address, address, address, address, uint){
-        return (madeBy[_ipfsLink], acceptedBy[_ipfsLink], retractedBy[_ipfsLink], rejectedBy[_ipfsLink], punishedBy[_ipfsLink], timestamp[_ipfsLink]);
+    function getEntryData(bytes32 _ipfsLink) public view returns (address[], address, address, address, address, uint, uint){
+        return (madeBy[_ipfsLink], acceptedBy[_ipfsLink], retractedBy[_ipfsLink], rejectedBy[_ipfsLink], punishedBy[_ipfsLink], timestamp[_ipfsLink], claimed[_ipfsLink]);
     }
     
     function getAuthors() public view returns (address[]){
@@ -130,7 +130,7 @@ contract OpenArticle {
     }
     
     /********* private ******************************************/
-    function reject(bytes32 _ipfsLink, bool _punish, uint _claim) private {
+    function reject(bytes32 _ipfsLink, bool _punish) private {
         require(virginLink(_ipfsLink));
         rejectedBy[_ipfsLink] = msg.sender;
         timestamp[_ipfsLink] = now;
@@ -138,34 +138,38 @@ contract OpenArticle {
             punishedBy[_ipfsLink] = msg.sender;
         }
         else{
-             _ScienceToken.transfer(madeBy[_ipfsLink][0], _claim); //let them split it themselves
+            uint claim = claimed[_ipfsLink];
+            claimed[_ipfsLink] = 0;
+            _ScienceToken.transfer(madeBy[_ipfsLink][0], claim); //let them split it themselves
         }
     }
-    function accept(bytes32 _ipfsLink, uint _reward) private {
+    function accept(bytes32 _ipfsLink, uint _bounty) private {
         require(virginLink(_ipfsLink));
         acceptedBy[_ipfsLink] = msg.sender;
         timestamp[_ipfsLink] = now;
-        _ScienceToken.transfer(madeBy[_ipfsLink][0], _reward); //let them split it themselves
+        uint fullBounty = _bounty + claimed[_ipfsLink];
+        claimed[_ipfsLink] = 0;
+        _ScienceToken.transfer(madeBy[_ipfsLink][0], fullBounty); //let them split it themselves
     }
     /************************************************************/
     
     function acceptVersion(bytes32 _version) public mainAuthorAccess {
-        accept(_version, coAuthorBounty + claimed[_version]);
+        accept(_version, coAuthorBounty);
         for(uint i = 0; i < madeBy[_version].length; i++){
             authors.push(madeBy[_version][i]);
         }
     }
     
     function rejectVersion(bytes32 _version, bool _punish) public mainAuthorAccess{
-        reject(_version, _punish, claimed[_version]);
+        reject(_version, _punish);
     }
     
     function approveReview(bytes32 _review) public mainAuthorAccess {
-        accept(_review, reviewBounty + claimed[_review]);
+        accept(_review, reviewBounty);
     }
     
     function rejectReview(bytes32 _review, bool _punish) public mainAuthorAccess{
-        reject(_review, _punish, claimed[_review]);
+        reject(_review, _punish);
     }
 /************************************************************/
 
@@ -186,13 +190,14 @@ contract OpenArticle {
     //you'll have to transfer tokens first to attach the data
     function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData) public { 
         require(_token == address(_ScienceToken));
-        require(_token == msg.sender);
+        require(msg.sender == address(_ScienceToken));
         bytes32 ipfsLink;
-        for (uint i = 0; i < 32; i++) {
-            ipfsLink |= bytes32(_extraData[i] & 0xFF) >> (i * 8);
+        assembly 
+        {
+            ipfsLink := mload(0x80) //mem location of _extraData
         }
         _ScienceToken.transferFrom(_from, this, _value);
-        claimed[ipfsLink] = _value;
+        claimed[ipfsLink] += _value;
     }
     
     function addVersion(bytes32 _version, address[] _coAuthors, bytes32[] _additionalData) public {
@@ -225,21 +230,26 @@ contract OpenArticle {
 /************************************************************/
 /******************** close *********************************/
 /************************************************************/
-    function closeArticle () mainAuthorAccess public {
-        bool VirginCommits = false;
+    function areThereUntouchedCommits () public view returns (bool) {
+        bool virginCommits = false;
         uint i = 0;
         uint j = 0;
-        while ((i < versions.length)&&(!VirginCommits)) //in theoretical case of huge number of rewiews/versions the article will be "unclosable". this is OK.
+        while ((i < versions.length)&&(!virginCommits)) //in theoretical case of huge number of rewiews/versions the article will be "unclosable". this is OK.
         {
-            VirginCommits = virginLink(versions[i]);
+            virginCommits = virginLink(versions[i]);
             j = 0;
-            while ((j < reviews[versions[i]].length)&&(!VirginCommits))
+            while ((j < reviews[versions[i]].length)&&(!virginCommits))
             {
-                VirginCommits = virginLink(reviews[versions[i]][j]);
+                virginCommits = virginLink(reviews[versions[i]][j]);
+                j++;
             }
             i++;
         }
-        require(!VirginCommits);
+        return virginCommits;
+    }
+
+    function closeArticle () mainAuthorAccess public {
+        require(!areThereUntouchedCommits());
         _ScienceToken.transfer(authors[0], _ScienceToken.balanceOf(this));  //this withdraws the pot and effectively closes the article untill someone pays to re-open it.
     }
 }
