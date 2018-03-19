@@ -18,7 +18,7 @@ contract OpenArticle {
     mapping(bytes32 => address) public retractedBy;
     mapping(bytes32 => address) public rejectedBy;
     mapping(bytes32 => address) public punishedBy;
-    mapping(bytes32 => uint) public timestamp;
+    mapping(bytes32 => uint) public activityTimestamp;
     mapping(bytes32 => uint) public claimed;
 
     address[] public authors;
@@ -79,7 +79,7 @@ contract OpenArticle {
         }
         //releaseVersion
         acceptedBy[_initialVersion] = msg.sender;
-        timestamp[_initialVersion] = now;
+        activityTimestamp[_initialVersion] = now;
         claimed[_initialVersion] = 0;
         //add aditional info
         for(i = 0; i < _additionalData.length; i++){
@@ -105,11 +105,15 @@ contract OpenArticle {
     }
     
     function getEntryData(bytes32 _ipfsLink) public view returns (address[], address, address, address, address, uint, uint){
-        return (madeBy[_ipfsLink], acceptedBy[_ipfsLink], retractedBy[_ipfsLink], rejectedBy[_ipfsLink], punishedBy[_ipfsLink], timestamp[_ipfsLink], claimed[_ipfsLink]);
+        return (madeBy[_ipfsLink], acceptedBy[_ipfsLink], retractedBy[_ipfsLink], rejectedBy[_ipfsLink], punishedBy[_ipfsLink], activityTimestamp[_ipfsLink], claimed[_ipfsLink]);
     }
     
     function getAuthors() public view returns (address[]){
         return (authors);
+    }
+
+    function getComments() public view returns (bytes32[]){
+        return (comments);
     }
 /************************************************************/
 
@@ -133,7 +137,7 @@ contract OpenArticle {
     function reject(bytes32 _ipfsLink, bool _punish) private {
         require(virginLink(_ipfsLink));
         rejectedBy[_ipfsLink] = msg.sender;
-        timestamp[_ipfsLink] = now;
+        activityTimestamp[_ipfsLink] = now;
         if (_punish){
             punishedBy[_ipfsLink] = msg.sender;
         }
@@ -146,7 +150,7 @@ contract OpenArticle {
     function accept(bytes32 _ipfsLink, uint _bounty) private {
         require(virginLink(_ipfsLink));
         acceptedBy[_ipfsLink] = msg.sender;
-        timestamp[_ipfsLink] = now;
+        activityTimestamp[_ipfsLink] = now;
         uint fullBounty = _bounty + claimed[_ipfsLink];
         claimed[_ipfsLink] = 0;
         _ScienceToken.transfer(madeBy[_ipfsLink][0], fullBounty); //let them split it themselves
