@@ -1,9 +1,9 @@
 pragma solidity ^0.4.19;
 
 import "./ERC20.sol";
+import "./Field.sol";
 
-
-contract OpenArticle {
+contract Article {
 /************************************************************/
 /*********************** public data ************************/
 /************************************************************/
@@ -18,7 +18,7 @@ contract OpenArticle {
     mapping(bytes32 => address) public retractedBy;
     mapping(bytes32 => address) public rejectedBy;
     mapping(bytes32 => address) public punishedBy;
-    mapping(bytes32 => uint) public activityTimestamp;
+    mapping(bytes32 => uint) public createdOn;
     mapping(bytes32 => uint) public claimed;
 
     address[] public authors;
@@ -30,6 +30,8 @@ contract OpenArticle {
     uint public reviewBounty;
     uint public coAuthorClaim;
     uint public reviewClaim;
+    
+    Field public field;
     
 /************************************************************/
 
@@ -64,9 +66,10 @@ contract OpenArticle {
 /************************************************************/
 /***************** contract creation ************************/
 /************************************************************/
-    function OpenArticle(address _scienceToken, bytes32 _initialVersion, address[] _coAuthors, bytes32[] _additionalData) public {
+    function Article(address _scienceToken, bytes32 _initialVersion, address[] _coAuthors, bytes32[] _additionalData, Field _field) public {
         //init Token
         _ScienceToken = TokenERC20(_scienceToken);
+        field = _field;
         //init authors
         authors.push(msg.sender);
         isAdmin[msg.sender] = true;
@@ -79,7 +82,7 @@ contract OpenArticle {
         }
         //releaseVersion
         acceptedBy[_initialVersion] = msg.sender;
-        activityTimestamp[_initialVersion] = now;
+        createdOn[_initialVersion] = now;
         claimed[_initialVersion] = 0;
         //add aditional info
         for(i = 0; i < _additionalData.length; i++){
@@ -105,15 +108,11 @@ contract OpenArticle {
     }
     
     function getEntryData(bytes32 _ipfsLink) public view returns (address[], address, address, address, address, uint, uint){
-        return (madeBy[_ipfsLink], acceptedBy[_ipfsLink], retractedBy[_ipfsLink], rejectedBy[_ipfsLink], punishedBy[_ipfsLink], activityTimestamp[_ipfsLink], claimed[_ipfsLink]);
+        return (madeBy[_ipfsLink], acceptedBy[_ipfsLink], retractedBy[_ipfsLink], rejectedBy[_ipfsLink], punishedBy[_ipfsLink], createdOn[_ipfsLink], claimed[_ipfsLink]);
     }
     
     function getAuthors() public view returns (address[]){
         return (authors);
-    }
-
-    function getComments() public view returns (bytes32[]){
-        return (comments);
     }
 /************************************************************/
 
@@ -137,7 +136,7 @@ contract OpenArticle {
     function reject(bytes32 _ipfsLink, bool _punish) private {
         require(virginLink(_ipfsLink));
         rejectedBy[_ipfsLink] = msg.sender;
-        activityTimestamp[_ipfsLink] = now;
+        createdOn[_ipfsLink] = now;
         if (_punish){
             punishedBy[_ipfsLink] = msg.sender;
         }
@@ -150,7 +149,7 @@ contract OpenArticle {
     function accept(bytes32 _ipfsLink, uint _bounty) private {
         require(virginLink(_ipfsLink));
         acceptedBy[_ipfsLink] = msg.sender;
-        activityTimestamp[_ipfsLink] = now;
+        createdOn[_ipfsLink] = now;
         uint fullBounty = _bounty + claimed[_ipfsLink];
         claimed[_ipfsLink] = 0;
         _ScienceToken.transfer(madeBy[_ipfsLink][0], fullBounty); //let them split it themselves
